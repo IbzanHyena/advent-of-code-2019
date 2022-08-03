@@ -40,6 +40,8 @@ SYMBOL: instructions
 
 PRIVATE>
 
+: boolean>fixnum ( ? -- n ) [ 1 ] [ 0 ] if ;
+
 TUPLE: program
   { pc integer initial: 0 }
   { buffer array }
@@ -97,6 +99,7 @@ C: <opcode> opcode
 : get ( index buffer mode -- value ) [ get-immediate ] [ get-position ] if ;
 
 :: increment ( program n -- program ) program program pc>> n + >>pc ;
+: jump ( program n -- program ) >>pc ;
 
 :: param ( program op n -- value )
   program pc>>     :> pc
@@ -146,15 +149,38 @@ C: <opcode> opcode
   2 increment
   ;
 
+:: op-jump-cond ( program op quot -- program )
+  program              ! program
+  program op 1 param   ! program val
+  quot call            ! program jump?
+  [ program op 2 param jump ]
+  [ 3 increment ]
+  if
+  ; inline
+
+: op-jump-true ( program op -- program ) [ zero? not ] op-jump-cond ;
+
+: op-jump-false ( program op -- program ) [ zero? ] op-jump-cond ;
+
+: op-lt ( program op -- program ) [ < boolean>fixnum ] op-arithmetic ;
+
+: op-eq ( program op -- program ) [ = boolean>fixnum ] op-arithmetic ;
+
 : op-halt ( program op -- program ) drop -1 >>pc ;
 
 H{
-  {  1 [ op-add    ] }
-  {  2 [ op-mul    ] }
-  {  3 [ op-input  ] }
-  {  4 [ op-output ] }
-  { 99 [ op-halt   ] }
+  {  1 [ op-add        ] }
+  {  2 [ op-mul        ] }
+  {  3 [ op-input      ] }
+  {  4 [ op-output     ] }
+  {  5 [ op-jump-true  ] }
+  {  6 [ op-jump-false ] }
+  {  7 [ op-lt         ] }
+  {  8 [ op-eq         ] }
+  { 99 [ op-halt       ] }
 } instructions set-global 
+
+: program-from-file ( path -- program )  utf8 file-contents "\n" "" replace create ;
 
 : run-program ( program -- program )
   [ dup pc>> 0 >= ]
@@ -162,22 +188,27 @@ H{
   while
   ;
 
+: run-with-input ( program n -- )
+  >>input       ! program
+  run-program   ! program
+  output>>      ! output
+  number>string ! str
+  print         !
+  ;
+
 : aoc02a ( path -- )
-  utf8 file-contents create
-  dup 12 1 rot set-nth
-  dup 2 2 rot set-nth
-  run-program
-  0 swap nth
+  program-from-file    ! program
+  dup buffer>>         ! program buffer
+  dup 12 1 rot set-nth ! program buffer
+  2 2 rot set-nth      ! program
+  run-program          ! program
+  buffer>>             ! buffer
+  0 swap nth           ! value
   number>string
   print
   ;
 
-: aoc05a ( path -- )
-  utf8 file-contents create
-  1 >>input
-  run-program
-  output>>
-  number>string
-  print
-  ;
+: aoc05a ( path -- ) program-from-file 1 run-with-input ;
+
+: aoc05b ( path -- ) program-from-file 5 run-with-input ;
 
