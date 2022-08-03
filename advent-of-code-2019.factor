@@ -1,9 +1,12 @@
 ! Copyright (C) 2022 Ibzan Hyena
 ! See http://factorcode.org/license.txt for BSD license.
 USING:
+  accessors
+  arrays
   assocs
   io io.encodings.utf8 io.files
   kernel
+  lists
   math math.functions math.order math.parser
   namespaces
   sequences
@@ -37,48 +40,126 @@ SYMBOL: instructions
 
 PRIVATE>
 
-: aoc01a ( path -- )
-  [ 3 / floor 2 - ] aoc01g
+TUPLE: program
+  { pc integer initial: 0 }
+  { buffer array }
+  { input integer initial: 0 }
+  { output integer initial: 0 }
   ;
 
-: aoc01b ( path -- )
-  [ aoc01bfuel ] aoc01g
+: create ( str -- program )
+  "," split [ string>number ] map ! buffer
+  program new                     ! buffer program
+  dup [ buffer<< ] dip            ! program
   ;
 
-: create ( str -- 0 buffer ) "," split [ string>number ] map 0 swap ;
+: antibase ( bases num -- digits )
+  [ sequence>list ] dip
+  1list
+  [                   ! acc elt
+    swap              ! elt acc
+    uncons            ! elt car cdr
+    [ swap /mod ] dip ! div rem cdr
+    cons cons         ! acc
+  ]
+  foldr
+  cdr
+  list>array
+  ;
 
-: fetch ( pc buffer -- pc buffer op ) 2dup nth ;
+TUPLE: opcode
+  { modes array } 
+  { code integer }
+  ;
 
-: decode ( op -- quot ) instructions get-global at* [ "unknown opcode" throw ] unless ;
+C: <opcode> opcode
 
-: execute ( pc buffer quot -- pc buffer ) call( pc buffer -- pc buffer ) ;
+: parse-opcode ( arr -- opcode )
+  { 10 10 10 100 } swap antibase ! arr
+  dup but-last                   ! arr modes
+  [ 1 = ] map reverse            ! arr modes
+  swap last                      ! modes code
+  <opcode>
+  ;
 
-:: op-arithmetic ( pc buffer quot -- pc buffer )
-  pc 1 + buffer nth buffer nth
-  pc 2 + buffer nth buffer nth
-  quot call
-  pc 3 + buffer nth
-  buffer set-nth
-  pc 4 + buffer
+: aoc01a ( path -- ) [ 3 / floor 2 - ] aoc01g ;
+
+: aoc01b ( path -- ) [ aoc01bfuel ] aoc01g ;
+
+: fetch ( program  -- program op ) dup [ pc>> ] [ buffer>> ] bi nth parse-opcode ;
+
+: decode ( op -- op quot ) dup code>> instructions get-global at* [ "unknown opcode" throw ] unless ;
+
+: execute ( program op quot -- program ) call( program op -- program ) ;
+
+:: get-position ( index buffer -- value ) index buffer nth buffer nth ;
+: get-immediate ( index buffer -- value ) nth ;
+: get ( index buffer mode -- value ) [ get-immediate ] [ get-position ] if ;
+
+:: increment ( program n -- program ) program program pc>> n + >>pc ;
+
+:: param ( program op n -- value )
+  program pc>>     :> pc
+  program buffer>> :> buffer
+
+  pc n +               ! index
+  buffer               ! index buffer
+  n 1 - op modes>> nth ! index buffer mode
+  get
+  ;
+
+:: op-arithmetic ( program op quot -- program )
+  program pc>>     :> pc
+  program buffer>> :> buffer
+
+  program op 1 param  ! val1
+  program op 2 param  ! val2
+  quot call           ! result
+  pc 3 + buffer nth   ! result destination
+  buffer set-nth      !
+  program 4 increment ! program
   ; inline
 
-: op-add ( pc buffer -- pc buffer ) [ + ] op-arithmetic ;
+: op-add ( program op -- program ) [ + ] op-arithmetic ;
 
-: op-mul ( pc buffer -- pc buffer ) [ * ] op-arithmetic ;
+: op-mul ( program op -- program ) [ * ] op-arithmetic ;
 
-: op-halt ( pc buffer -- -1 buffer ) [ drop -1 ] dip ;
+:: op-input ( program op -- program )
+  program pc>>   :> pc
+  program buffer>> :> buffer
+
+  program input>> ! input
+  pc 1 +          ! input n
+  buffer          ! input n buffer
+  nth             ! input index
+  buffer          ! input index buffer
+  set-nth         !
+
+  program 2 increment
+  ;
+
+:: op-output ( program op -- program ) 
+  program            ! program
+  program op 1 param ! program value
+  >>output           ! program
+
+  2 increment
+  ;
+
+: op-halt ( program op -- program ) drop -1 >>pc ;
 
 H{
-  {  1 [ op-add  ] }
-  {  2 [ op-mul  ] }
-  { 99 [ op-halt ] }
+  {  1 [ op-add    ] }
+  {  2 [ op-mul    ] }
+  {  3 [ op-input  ] }
+  {  4 [ op-output ] }
+  { 99 [ op-halt   ] }
 } instructions set-global 
 
-: run-program ( pc buffer -- buffer )
-  [ [ dup 0 >= ] dip swap ]
+: run-program ( program -- program )
+  [ dup pc>> 0 >= ]
   [ fetch decode execute ]
   while
-  [ drop ] dip
   ;
 
 : aoc02a ( path -- )
@@ -91,5 +172,12 @@ H{
   print
   ;
 
-
+: aoc05a ( path -- )
+  utf8 file-contents create
+  1 >>input
+  run-program
+  output>>
+  number>string
+  print
+  ;
 
