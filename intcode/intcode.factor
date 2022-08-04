@@ -11,6 +11,7 @@ USING:
   namespaces
   sequences
   splitting
+  vectors
   ;
 IN: advent-of-code-2019.intcode
 SYMBOL: instructions
@@ -20,8 +21,8 @@ SYMBOL: instructions
 TUPLE: program
   { pc integer initial: 0 }
   { buffer array }
-  { input integer initial: 0 }
-  { output integer initial: 0 }
+  { input vector initial: V{ }  }
+  { output vector initial: V{ }  }
   ;
 
 : create ( str -- program )
@@ -102,7 +103,8 @@ C: <opcode> opcode
   program pc>>   :> pc
   program buffer>> :> buffer
 
-  program input>> ! input
+  program input>> ! arr
+  pop             ! input
   pc 1 +          ! input n
   buffer          ! input n buffer
   nth             ! input index
@@ -113,11 +115,11 @@ C: <opcode> opcode
   ;
 
 :: op-output ( program op -- program ) 
-  program            ! program
-  program op 1 param ! program value
-  >>output           ! program
+  program op 1 param ! value
+  program output>>   ! value arr
+  push               !
 
-  2 increment
+  program 2 increment
   ;
 
 :: op-jump-cond ( program op quot -- program )
@@ -154,17 +156,29 @@ H{
 : program-from-file ( path -- program )  utf8 file-contents "\n" "" replace create ;
 
 : run-program ( program -- program )
-  [ dup pc>> 0 >= ]
-  [ fetch decode execute ]
-  while
+  [ dup pc>> 0 >= ]        ! program pred
+  [ fetch decode execute ] ! program pred body
+  while                    ! program
+  ;
+
+: print-output ( program -- )
+  output>>              ! vector
+  [ number>string ] map ! seq
+  "\n" join             ! str
+  print                 !
+  ;
+
+: run-with-inputs ( program seq -- )
+  >vector      ! program input
+  >>input      ! program
+  run-program  ! program
+  print-output !
   ;
 
 : run-with-input ( program n -- )
-  >>input       ! program
-  run-program   ! program
-  output>>      ! output
-  number>string ! str
-  print         !
+  [ dup input>> ] dip ! program arr n
+  swap push           ! program
+  run-program         ! program
+  print-output
   ;
-
 

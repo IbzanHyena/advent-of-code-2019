@@ -5,7 +5,7 @@ USING:
   advent-of-code-2019.intcode
   io io.encodings.utf8 io.files
   kernel
-  math math.functions math.order math.parser
+  math math.combinatorics math.functions math.order math.parser
   sequences
   ;
 IN: advent-of-code-2019
@@ -54,4 +54,16 @@ PRIVATE>
 : aoc05a ( path -- ) program-from-file 1 run-with-input ;
 
 : aoc05b ( path -- ) program-from-file 5 run-with-input ;
+
+<PRIVATE
+
+:: aoc07as ( program inputs -- value )
+
+  ;
+
+PRIVATE>
+
+: aoc07a ( path -- )
+  program-from-file              ! program
+  { 0 1 2 3 4 } all-permutations ! program inputs
 
