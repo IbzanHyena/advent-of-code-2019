@@ -3,10 +3,13 @@
 USING:
   accessors
   advent-of-code-2019.intcode
+  arrays
   io io.encodings.utf8 io.files
   kernel
+  lists
   math math.combinatorics math.functions math.order math.parser
-  sequences
+  sequences sequences.deep
+  vectors
   ;
 IN: advent-of-code-2019
 
@@ -55,15 +58,22 @@ PRIVATE>
 
 : aoc05b ( path -- ) program-from-file 5 run-with-input ;
 
-<PRIVATE
-
-:: aoc07as ( program inputs -- value )
-
+:: aoc07a ( path -- )
+  path program-from-file :> prog
+  [ prog [ clone ] deep-map ] :> new-prog
+  { 0 1 2 3 4 } all-permutations
+  [
+    >list ! permutation
+    0     ! permutation 0
+    [                    ! prev elt
+      2array >vector     ! inputs
+      new-prog call swap ! prog inputs
+      >>input            ! prog
+      run-program        ! prog
+      output>>           ! vec
+      last               ! next
+    ]     ! permutation 0 quot
+    foldl ! result
+  ]
+  map supremum number>string print
   ;
-
-PRIVATE>
-
-: aoc07a ( path -- )
-  program-from-file              ! program
-  { 0 1 2 3 4 } all-permutations ! program inputs
-
